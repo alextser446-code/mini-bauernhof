@@ -6,15 +6,54 @@ from tkinter import messagebox
 
 geld = 20
 feld = [None, None, None]
-preise = {"Karotte": 5, "Tomate": 15}
-verkaufspreise = {"Karotte": 10, "Tomate": 15}
+PFLANZEN = {
+    "Carrot":{
+        "price": 5, "sale": 10, "chance": 0.90, "stock": (1, 6),
+        "growth": 40, "extra_watering": 0,
+        "stem": "#27632a", "leaf1": "#48a848", "leaf2": "#55b84f",
+    },
+    "Tomato": {
+        "price": 15, "sale": 20, "chance": 0.75, "stock": (1, 3),
+        "growth": 60, "extra_watering": 1,
+        "stem": "#27632a", "leaf1": "#328c39", "leaf2": "#55b84f",
+    },
+    "Strawberry": {
+        "price": 25, "sale": 35, "chance": 0.55, "stock": (1, 3),
+        "growth": 60, "extra_watering": 2,
+        "stem": "#27632a", "leaf1": "#226b35", "leaf2": "#68c75e",
+    },
+    "Pumpkin": {
+        "price": 50, "sale": 75, "chance": 0.35, "stock": (1, 2),
+        "growth": 90, "extra_watering": 3,
+        "stem": "#496b25", "leaf1": "#537c2b", "leaf2": "#83a83e",
+    },
+    "Golden Flower": {
+        "price": 250, "sale": 500, "chance": 0.05, "stock": (1, 1),
+        "growth": 120, "extra_watering": 3,
+        "stem": "#347342", "leaf1": "#4b9b51", "leaf2": "#7fcf63",
+    },
+    "Dragon Fruit": {
+        "price": 1000, "sale": 5000, "chance": 0.01, "stock": (1, 1),
+        "growth": 180, "extra_watering": 5, "boss": True,
+        "stem": "#315c35", "leaf1": "338e52", "leaf2": "#66c77a",
+    },
+}
+
+preise = {name: daten["price"] for name, daten in PFLANZEN.items()}
+verkaufspreise = {name: daten["sale"] for name, daten in PFLANZEN.items()}
+
+samen_inventar = {name: 0 for name in PFLANZEN}
+ernte_lager = {name: 0 for name in PFLANZEN}
+
+shop_chancen = {name: daten["chance"] for name, daten in PFLANZEN.items()}
+shop_mengen = {name: daten["stock"] for name, daten in PFLANZEN.items()}
 
 fenster = tk.Tk()
-fenster.title("Mein Mini-Bauernhof")
+fenster.title("My Mini Farm")
 fenster.geometry("1000x760")
 fenster.configure(bg="#d9edc2")
 
-werkzeug = "Karotte"
+werkzeug = "Carrot"
 beet_positionen = [
     (90, 220, 330, 430),
     (380, 220, 620, 430),
@@ -26,7 +65,208 @@ geld_text = None
 tag_text = None
 spielstart = 0.0
 letzter_tag = 1
-wetter = "Sonnig"
+wetter = "Sunny"
+
+shop_bestand = {
+    name: random.randint(*shop_mengen[name]) if random.random() < chance else 0
+    for name, chance in shop_chancen.items()
+}
+shop_reset_zeit = time.monotonic() + 300
+
+shop_labels = {}
+shop_buttons = {}
+markt_labels = {}
+markt_buttons = {}
+inventar_buttons = {}
+shop_timer_label = None
+
+
+def aktualisiere_inventar():
+    for name, button in inventar_buttons.items():
+        button.config(
+            text=f"{name} seeds: {samen_inventar[name]}",
+            state="normal" if samen_inventar[name] > 0 else "disabled",
+        )
+
+
+def aktualisiere_shop_anzeige():
+    for name, label in list(shop_labels.items()):
+        try:
+            label.config(
+                text=f"In stock: {shop_bestand[name]}" if shop_bestand[name] > 0 else "Out of stock"
+            )
+            shop_buttons[name].config(
+                state="normal" if shop_bestand[name] > 0 else "disabled"
+            )
+        except tk.TclError:
+            pass
+
+    if shop_timer_label is not None:
+        try:
+            restzeit = max(0, int(shop_reset_zeit - time.monotonic()))
+            shop_timer_label.config(
+                text=f"New stock in {restzeit // 60}:{restzeit % 60:02d}"
+            )
+        except tk.TclError:
+            pass
+
+
+def erneuere_shop(jetzt=None):
+    global shop_bestand, shop_reset_zeit
+
+    if jetzt is None:
+        jetzt = time.monotonic()
+
+    shop_bestand = {
+        name: random.randint(*shop_mengen[name]) if random.random() < chance else 0
+        for name, chance in shop_chancen.items()
+    }
+    shop_reset_zeit = jetzt + 300
+    aktualisiere_shop_anzeige()
+
+
+def kaufe_samen(name):
+    global geld
+    
+    if shop_bestand[name] <= 0:
+        status_text.config(text=f"{name} is out of stock.")
+        return
+
+    if geld < preise[name]:
+        status_text.config(text="You don't have enough coins.")
+        return
+
+    geld -= preise[name]
+    samen_inventar[name] += 1
+    shop_bestand[name] -= 1
+
+    geld_text.config(text=f"Coins: {geld}")
+    status_text.config(text=f"You bought one {name} seed.")
+    aktualisiere_inventar()
+    aktualisiere_shop_anzeige()
+
+
+def zeige_shop():
+    global shop_labels, shop_buttons, shop_timer_label
+
+    fenster_shop = tk.Toplevel(fenster)
+    fenster_shop.title("Seed Shop")
+    fenster_shop.geometry("360x260")
+    fenster_shop.configure(bg="#d9edc2")
+
+    shop_labels = {}
+    shop_buttons = {}
+
+    tk.Label(
+        fenster_shop,
+        text="Seed Shop",
+        font=("Arial", 20, "bold"),
+        bg="#d9edc2",
+    ).pack(pady=10)
+
+    shop_timer_label = tk.Label(
+        fenster_shop,
+        text="",
+        font=("Arial", 11),
+        bg="#d9edc2",
+    )
+    shop_timer_label.pack(pady=5)
+
+    for name in preise:
+        zeile = tk.Frame(fenster_shop, bg="#d9edc2")
+        zeile.pack(fill="x", padx=15, pady=5)
+
+        tk.Label(
+            zeile,
+            text=f"{name} - {preise[name]} coins",
+            bg="#d9edc2",
+            font=("Arial", 12),
+        ).pack(side="left")
+
+        shop_labels[name] = tk.Label(
+            zeile,
+            text="",
+            bg="#d9edc2",
+            font=("Arial", 10),
+        )
+        shop_labels[name].pack(side="left", padx=8)
+
+        shop_buttons[name] = tk.Button(
+            zeile,
+            text="Buy",
+            command=lambda n=name: kaufe_samen(n),
+        )
+        shop_buttons[name].pack(side="right")
+
+    aktualisiere_shop_anzeige()
+
+
+def aktualisiere_marktplatz():
+    for name, label in list(markt_labels.items()):
+        try:
+            label.config(text=f"{name}: {ernte_lager[name]}")
+            markt_buttons[name].config(
+                state="normal" if ernte_lager[name] > 0 else "disabled"
+            )
+        except tk.TclError:
+            pass
+
+
+def verkaufe_ernte(name):
+    global geld
+
+    anzahl = ernte_lager[name]
+    if anzahl == 0:
+        status_text.config(text=f"You have no {name} to sell.")
+        return
+
+    einnahmen = anzahl * verkaufspreise[name]
+    geld += einnahmen
+    ernte_lager[name] = 0
+
+    geld_text.config(text=f"Coins: {geld}")
+    status_text.config(text=f"Sold! You earned {einnahmen} coins.")
+    aktualisiere_marktplatz()
+
+
+def zeige_marktplatz():
+    global markt_labels, markt_buttons
+
+    fenster_markt = tk.Toplevel(fenster)
+    fenster_markt.title("Marketplace")
+    fenster_markt.geometry("360x240")
+    fenster_markt.configure(bg="#d9edc2")
+
+    markt_labels = {}
+    markt_buttons = {}
+
+    tk.Label(
+        fenster_markt,
+        text="Marketplace",
+        font=("Arial", 20, "bold"),
+        bg="#d9edc2",
+    ).pack(pady=10)
+
+    for name in verkaufspreise:
+        zeile = tk.Frame(fenster_markt, bg="#d9edc2")
+        zeile.pack(fill="x", padx=15, pady=8)
+
+        markt_labels[name] = tk.Label(
+            zeile,
+            text="",
+            bg="#d9edc2",
+            font=("Arial", 12),
+        )
+        markt_labels[name].pack(side="left")
+
+        markt_buttons[name] = tk.Button(
+            zeile,
+            text=f"Sell all ({verkaufspreise[name]} coins each)",
+            command=lambda n=name: verkaufe_ernte(n),
+        )
+        markt_buttons[name].pack(side="right")
+
+    aktualisiere_marktplatz()
 
 
 def zeige_menue():
@@ -38,7 +278,7 @@ def zeige_menue():
 
     tk.Label(
         menue,
-        text="Mein Mini-Bauernhof",
+        text="My Mini Farm",
         font=("Arial", 32, "bold"),
         bg="#d9edc2",
         fg="#31572c",
@@ -46,7 +286,7 @@ def zeige_menue():
 
     tk.Label(
         menue,
-        text="Pflanze, gieße und ernte dein eigenes Gemüse!",
+        text="Plant, water, and harvest your own crops!",
         font=("Arial", 16),
         bg="#d9edc2",
         fg="#31572c",
@@ -54,7 +294,7 @@ def zeige_menue():
 
     tk.Button(
         menue,
-        text="Spielen",
+        text="Play",
         font=("Arial", 20, "bold"),
         width=16,
         command=zeige_spiel,
@@ -65,7 +305,7 @@ def zeige_menue():
 
     tk.Button(
         menue,
-        text="Beenden",
+        text="Quit",
         font=("Arial", 14),
         width=16,
         command=fenster.destroy,
@@ -76,17 +316,17 @@ def waehle_werkzeug(neues_werkzeug):
     global werkzeug
     werkzeug = neues_werkzeug
 
-    if neues_werkzeug == "Wasser":
+    if neues_werkzeug == "Water":
         status_text.config(
-            text="Gießkanne gewählt: Bewässere alle drei blauen Stellen."
+            text="Watering can selected: water all three blue spots."
         )
-    elif neues_werkzeug == "Ernte":
+    elif neues_werkzeug == "Harvest":
         status_text.config(
-            text="Ernte gewählt: Klicke auf ein reifes Beet"
+            text="Harvest selected: click a ripe crop."
         )
     else:
         status_text.config(
-            text=f"{neues_werkzeug}-Samen gewählt: Klicke auf ein leeres Beet."
+            text=f"{neues_werkzeug} seeds selected: click an empty plot."
         )
 
     zeichne_farm()
@@ -96,18 +336,82 @@ def zeichne_farm():
     spielfeld.delete("all")
 
     #Himmel und Wiese
-    spielfeld.create_rectangle(0, 0, 1000, 520, fill="#9bd6f2", outline="")
-    spielfeld.create_oval(-100, 280, 1100, 700, fill="#72b85a", outline="")
-    spielfeld.create_rectangle(0, 350, 1000, 520, fill="#72b85a", outline="")
+    # Hintergrundfarbe je nach Wetter
+    if wetter == "Rain":
+        himmelfarbe = "#657b89"
+        wiesenfarbe = "#547a43"
+    elif wetter == "Cloudy":
+        himmelfarbe = "#93a2a7"
+        wiesenfarbe = "#68925b"
+    else:
+        himmelfarbe = "#9bd6f2"
+        wiesenfarbe = "#72b85a"
 
-    # Sonne
-    spielfeld.create_oval(850, 25, 925, 100, fill="#ffdb58", outline="")
+    spielfeld.create_rectangle(
+        0, 0, 1000, 520,
+        fill=himmelfarbe,
+        outline="",
+    )
+    spielfeld.create_oval(
+        -100, 280, 1100, 700,
+        fill=wiesenfarbe,
+        outline="",
+    )
+    spielfeld.create_rectangle(
+        0, 350, 1000, 520,
+        fill=wiesenfarbe,
+        outline="",
+    )
 
-    # Wolken
-    for x, y in [(270, 55), (520,85)]:
-        spielfeld.create_oval(x, y, x + 55, y + 30, fill="white", outline="")
-        spielfeld.create_oval(x + 25, y - 15, x + 80, y + 30, fill="white", outline="")
-        spielfeld.create_oval(x + 55, y, x + 100, y + 30, fill="white", outline="")
+    # Sun appears only in sunny weather
+    if wetter == "Sunny":
+        spielfeld.create_oval(
+            850, 25, 925, 100,
+            fill="#ffdb58",
+            outline="",
+        )
+
+    # Darker clouds appear during cloudy weather and rain
+    if wetter == "Rain":
+        wolkenfarbe = "#59666d"
+    elif wetter == "Cloudy":
+        wolkenfarbe = "#77848a"
+    else:
+        wolkenfarbe = "white"
+
+
+    for x, y in [(270, 55), (520, 85)]:
+        spielfeld.create_oval(
+            x, y, x + 55, y + 30,
+            fill=wolkenfarbe,
+            outline="",
+        )
+        spielfeld.create_oval(
+            x + 25, y - 15, x + 80, y + 30,
+            fill=wolkenfarbe,
+            outline="",
+        )
+        spielfeld.create_oval(
+            x + 55, y, x + 100, y + 30,
+            fill=wolkenfarbe,
+            outline="",
+        )
+
+    # Moving raindrops
+    if wetter == "Rain":
+        regen_versatz = int(time.monotonic() * 120) % 70
+
+        for x in range(30, 980, 75):
+            for basis_y in range(-50, 520, 90):
+                regen_y = (basis_y + regen_versatz) % 550
+                spielfeld.create_line(
+                    x,
+                    regen_y,
+                    x - 8,
+                    regen_y + 16,
+                    fill="#d8f0f7",
+                    width=2,
+                )
 
     # Baum rechts neben der Scheune
     spielfeld.create_rectangle(830, 130, 850, 200, fill="#795548", outline="")
@@ -164,20 +468,38 @@ def zeichne_farm():
             spielfeld.create_text(
                 (x1 + x2) / 2,
                 y1 + 45,
-                text="Leeres Beet",
+                text="Empty plot",
                 font=("Arial", 16, "bold"),
                 fill="#f5deb3",
             )
             continue
 
         name = pflanze["pflanze"]
+        daten = PFLANZEN[name]
+        dauer = daten["growth"]
 
-        #Kleine Pflanzenprosse
-        # Die Pflanzen wachsen sichtbar während der Wartezeit
         if pflanze["startzeit"] is None:
-            wachstum = 0.15
+            wachszum = 0.15
+            fortschritt = 0
+            anzeige = "Not watered yet"
         else:
-            wachstum = min(1, pflanze["wachstum"] / 40)
+            wachstum = min(1, pflanze["wachstum"] / dauer)
+            fortschritt = pflanze["wachstum"] / dauer
+
+            if pflanze["warte_auf_wasser"]:
+                if pflanze["boss"]:
+                    sekunden = max(
+                        0,
+                        int(pflanze["giess_deadline"] - time.monotonic())
+                    )
+                    anzeige = f"WATER NOW! {sekunden} seconds left!"
+                else:
+                    anzeige = "Needs water — growth paused"
+            elif pflanze["wachstum"] >= dauer:
+                anzeige = "Ready to harvest!"
+            else:
+                restzeit = dauer - pflanze["wachstum"]
+                anzeige = f"Growing: {restzeit:04.1f} seconds left"
 
         stamm_hoehe = 15 + int(wachstum * 45)
         pflanzen_basis_y = y1 + 150
@@ -191,7 +513,7 @@ def zeichne_farm():
                 pflanzen_basis_y,
                 pflanzen_x,
                 stamm_oben,
-                fill="#27632a",
+                fill=daten["stem"],
                 width=6,
             )
             spielfeld.create_oval(
@@ -199,7 +521,7 @@ def zeichne_farm():
                 stamm_oben + 8,
                 pflanzen_x,
                 stamm_oben + 20,
-                fill="#48a848",
+                fill=daten["leaf1"],
                 outline="",
             )
             spielfeld.create_oval(
@@ -207,7 +529,7 @@ def zeichne_farm():
                 stamm_oben,
                 pflanzen_x + blatt_groesse * 2,
                 stamm_oben + 14,
-                fill="#55b84f",
+                fill=daten["leaf2"],
                 outline="",
             )
 
@@ -219,35 +541,6 @@ def zeichne_farm():
             fill="white",
         )
 
-        if pflanze["startzeit"] is None:
-            anzeige = "Noch nicht bewässert"
-            fortschritt = 0
-        else:
-            restzeit = max(0, 40 - pflanze["wachstum"])
-            fortschritt = pflanze["wachstum"] / 40
-
-            if restzeit == 0:
-                anzeige = "Erntereif! Klicke zum Ernten."
-
-                for frucht_x in (x1 + 65, x1 + 120, x1 + 175):
-                    if name == "Karotte":
-                        spielfeld.create_polygon(
-                            frucht_x - 8, y1 + 125,
-                            frucht_x + 8, y1 +125,
-                            frucht_x, y1 + 150,
-                            fill="#ff8c00",
-                            outline="#bd5e00",
-                        )
-                    else:
-                        spielfeld.create_oval(
-                            frucht_x - 11, y1 + 125,
-                            frucht_x + 11, y1 + 147,
-                            fill="#e53935",
-                            outline="#a51d25",
-                        )
-            else:
-                anzeige = f"Wächst noch: {restzeit:04.1f} Sekunden"
-
         spielfeld.create_text(
             (x1 + x2) / 2,
             y1 + 65,
@@ -256,7 +549,86 @@ def zeichne_farm():
             fill="white",
         )
 
-        balken_links = x1 + 40 
+        if pflanze["wachstum"] >= dauer:
+            for frucht_x in (x1 + 65, x1 + 120, x1 + 175):
+                frucht_y = y1 + 137
+
+                if name =="Carrot":
+                    spielfeld.create_polygon(
+                        frucht_x - 9, frucht_y - 13,
+                        frucht_x + 9, frucht_y - 13,
+                        frucht_x, frucht_y + 15,
+                        fill="#ff8c00",
+                        outline="#bd5e00",
+                    )
+                elif name == "Tomato":
+                    spielfeld.create_oval(
+                        frucht_x - 12, frucht_y - 12,
+                        frucht_x + 12, frucht_y + 12,
+                        fill="#e53935",
+                        outline="#a51d25"
+                    )
+                elif name == "Strawberry":
+                    spielfeld.create_polygon(
+                        frucht_x - 12, frucht_y - 7,
+                        frucht_x + 12, frucht_y - 7,
+                        frucht_x + 8, frucht_y + 10,
+                        frucht_x, frucht_y + 16,
+                        frucht_x - 8, frucht_y + 10,
+                        fill="#f22654",
+                        outline="#9f1239",
+                    )
+                    spielfeld.create_oval(
+                        frucht_x - 8, frucht_y - 13,
+                        frucht_x + 8, frucht_y - 5,
+                        fill="#58a832",
+                        outline="",
+                    )
+                elif name == "Pumpkin":
+                    spielfeld.create_oval(
+                        frucht_x - 15, frucht_y - 12,
+                        frucht_x + 15, frucht_y + 13,
+                        fill="#f28c28",
+                        outline="#a95116",
+                        width=2,
+                    )
+                    spielfeld.create_line(
+                        frucht_x, frucht_y - 12,
+                        frucht_x, frucht_y + 12,
+                        fill="#a95116",
+                        width=2,
+                    )
+                elif name == "Golden Flower":
+                    for dx, dy in [(0, -10), (10, 0), (-10 ,0)]:
+                        spielfeld.create_oval(
+                            frucht_x + dx - 7, frucht_y + dy - 7,
+                            frucht_x + dx + 7, frucht_y + dy + 7,
+                            fill="#ffd700",
+                            outline="#d89b00",
+                        )
+                    spielfeld.create_oval(
+                        frucht_x - 5, frucht_y -5,
+                        frucht_x + 5, frucht_y +5,
+                        fill="#7a4b20",
+                        outline="",
+                    )
+                else:
+                    spielfeld.create_oval(
+                        frucht_x - 14, frucht_y - 10,
+                        frucht_x + 14, frucht_y + 10,
+                        fill="#d927a9",
+                        outline="#75136f",
+                        width=2,
+                    )
+                    for dx in (-10, 0, 10):
+                        spielfeld.create_polygon(
+                            frucht_x + dx - 3, frucht_y - 8,
+                            frucht_x + dx + 3, frucht_y - 15,
+                            frucht_x + dx + 5, frucht_y - 6,
+                            fill="#58a832",
+                            outline="",
+                        )
+
         balken_rechts = x2 - 40
         balken_y = y1 + 190
 
@@ -296,12 +668,12 @@ def zeichne_farm():
     spielfeld.create_text(
         960,
         445,
-        text="Werkzeug",
+        text="Tool",
         font=("Arial", 11, "bold"),
         fill="#31572c",
     )
 
-    if werkzeug == "Wasser":
+    if werkzeug == "Water":
         # Gießkanne
         spielfeld.create_rectangle(
             940, 460, 972, 485,
@@ -322,7 +694,7 @@ def zeichne_farm():
             outline="#24536b",
             width=3,
         )
-    elif werkzeug == "Ernte":
+    elif werkzeug == "Harvest":
         # Schere
         spielfeld.create_oval(
             937, 466, 952, 481,
@@ -356,96 +728,151 @@ def zeichne_farm():
 
 
 def klicke_auf_farm(event):
-    global geld
-
     for nummer, (x1, y1, x2, y2) in enumerate(beet_positionen):
         if not (x1 <= event.x <= x2 and y1 <= event.y <= y2):
             continue
 
         pflanze = feld[nummer]
 
-        # Leeres Beet: Samen darauf pflanzen
         if pflanze is None:
-            if werkzeug not in preise:
-                status_text.config(text="Wähle zuerst einen Samen aus.")
+            if werkzeug not in samen_inventar:
+                status_text.config(text="Select seeds from the inventory below.")
                 return
 
-            if geld < preise [werkzeug]:
-                status_text.config(text="Du hast nicht genug Münzen für diesen Samen.")
+
+            if samen_inventar[werkzeug] <= 0:
+                status_text.config(text=f"You have no {werkzeug} seeds.")
                 return
 
-            geld -= preise[werkzeug]
+            samen_inventar[werkzeug] -= 1
+            daten = PFLANZEN[werkzeug]
+            extra_water = daten["extra_watering"]
+
             feld[nummer] = {
                 "pflanze": werkzeug,
                 "gegossen": [False, False, False],
                 "startzeit": None,
                 "wachstum": 0.0,
                 "letzte_aktualisierung": None,
+                "warte_auf_wasser": False,
+                "giess_deadline": None,
+                "boss": daten.get("boss", False),
+                "wasser_zeitpunkte": [
+                    daten["growth"] * schritt / (extra_wasser + 1)
+                    for schritt in range(1, extra_wasser + 1)
+                ],
             }
-            geld_text.config(text=f"Münzen: {geld}")
+
+            aktualisiere_inventar()
             status_text.config(
-                text="Samen gepflanzt! Wähle die Gießkanne und bewässere alle drei blauen Stellen."
+                text="Seed planted! Water all three blue spots to start."
             )
             zeichne_farm()
             return
 
-        # Mit der Gießkanne die drei markierten
-        if werkzeug == "Wasser" and pflanze["startzeit"] is None:
-            punkt_y = y1 + 165
+        punkt_y = y1 + 165
 
+        if werkzeug == "Water":
             for stelle in range(3):
                 punkt_x = x1 + 55 + stelle * 65
-                abstand = ((event.x - punkt_x) ** 2 + (event.y - punkt_y) ** 2) ** 0.5
+                abstand = (
+                    (event.x - punkt_x) ** 2
+                    + (event.y - punkt_y) ** 2
+                ) ** 0.5
 
-                if abstand <= 22:
+                if abstand > 22:
+                    continue
+
+                if pflanze["startzeit"] is None:
                     if pflanze["gegossen"][stelle]:
-                        status_text.config(text="Diese Stelle ist schon bewässert.")
+                        status_text.config(text="This spot is already watered.")
                         return
 
-                    pflanze["gegossen"][stelle] = True
+                    pflanze["gegossen"][stelle] = True 
 
                     if all(pflanze["gegossen"]):
                         pflanze["startzeit"] = time.monotonic()
-                        pflanze["wachstum"] = 0.0
-                        pflanze["letzte_aktualisierung"] = time.monotonic()
-                        status_text.config(
-                            text="Das Beet ist bewässert! Warte 40 Sekunden bis zur Ernte."
-                        )
+                        pflanze["letzte_aktualisierung"] = time. monotonic()
+                        if pflanze["boss"]:
+                            status_text.config(
+                                text="Dragon Fruit started! it needs 3 minutes and 5 extra waterings."
+                            )
+                        else:
+                            status_text.config(
+                                text="Watering complete! The crop is growing."
+                            )
                     else:
                         status_text.config(
-                            text="Gut gegossen! Bewässere auch die anderen blauen Stellen."
+                            text="Good! Water the other blue spots too."
                         )
 
                     zeichne_farm()
                     return
 
-            status_text.config(text="Klicke mit der Gießkanne auf einen blauen Punkt im Beet.")
+                if not pflanze["warte_auf_wasser"]:
+                    status_text.config(text="This crop does not need water right now.")
+                    return
+
+                if pflanze["gegossen"][stelle]:
+                    status_text.config(text="This spot is already watered.")
+                    return
+
+                pflanze["gegossen"][stelle]= True
+
+                if all(pflanze["gegossen"]):
+                    if pflanze["wasser_zeitpunkte"]:
+                        pflanze["wasser_zeitpunkte"].pop(0)
+
+                    pflanze["warte_auf_wasser"] = False
+                    pflanze["giess_deadline"] = None
+                    pflanze["letzte_aktualisierung"] = time.monotonic()
+                    status_text.config(text="Watering round complete! Growth continues.")
+                else:
+                    status_text.config(
+                        text="Water the other blue spots befor time runs out!"
+                    )
+
+                zeichne_farm()
+                return
+
+            status_text.config(text="Click one of the blue watering spots.")
             return
 
-        # Reife Pflanze ernten
+        if werkzeug != "Harvest":
+            status_text.config(text="Select the Watering Can or Harvest tool.")
+            return
+
         if pflanze["startzeit"] is None:
-            status_text.config(text="Bewässere zuerst alle drei Stellen im Beet.")
+            status_text.config(text="Water all three spots first.")
             return
 
-        if pflanze["wachstum"] < 40:
-            restzeit = 40 - pflanze["wachstum"]
+        if pflanze["warte_auf_wasser"]:
+            status_text.config(text="This crop needs water before it can grow or be harvested.")
+            return
+
+        dauer = PFLANZEN[pflanze["pflanze"]]["growth"]
+        if pflanze["wachstum"] < dauer:
+            restzeit = dauer - pflanze["wachstum"]
             status_text.config(
-                text=f"Noch nicht reif - warte {restzeit:.1f} Sekunden."
+                text=f"Not ripe yet - wait {restzeit:.1f} seconds."
             )
             return
-        
+
         name = pflanze["pflanze"]
         ertrag = random.randint(1, 3)
-        einnahmen = verkaufspreise[name] * ertrag
-        geld += einnahmen
+        ernte_lager[name] += ertrag
         feld[nummer] = None
 
-        geld_text.config(text=f"Münzen: {geld}")
+        aktualisiere_marktplatz()
         status_text.config(
-            text=f"Geerntet: {ertrag} {name}(n). du hast {einnahmen} Münzen verdient!"
+            text=f"Harvested {ertrag} {name}(s). Sell them in the Marketplace."
         )
         zeichne_farm()
         return
+
+
+
+
 
 def aktualisiere_spiel(geplant=True):
     global wetter, letzter_tag
@@ -454,29 +881,61 @@ def aktualisiere_spiel(geplant=True):
         return
 
     jetzt = time.monotonic()
+    if jetzt >= shop_reset_zeit:
+        erneuere_shop(jetzt)
+    else:
+        aktualisiere_shop_anzeige()
     tag = int((jetzt - spielstart) // 60) + 1
 
     if tag != letzter_tag:
         letzter_tag = tag
-        wetter = random.choice(["Sonnig", "Bewölkt", "Regen"])
+        wetter = random.choice(["Sunny", "Cloudy", "Rain"])
 
-    wachstumsfaktor = 1.5 if wetter == "Regen" else 1.0
+    wachstumsfaktor = 1.5 if wetter == "Rain" else 1.0
 
-    for pflanze in feld:
-        if pflanze is not None and pflanze["startzeit"] is not None:
-            vergangen = max(0, jetzt - pflanze["letzte_aktualisierung"])
-            pflanze["wachstum"] = min(
-                40,
-                pflanze["wachstum"] + vergangen * wachstumsfaktor,
-            )
-            pflanze["letzte_aktualisierung"] = jetzt
+    for nummer, pflanze in enumerate(feld):
+        if pflanze is None or pflanze["startzeit"] is None:
+            continue
 
-    tag_text.config(text=f"TAG {tag}  |  {wetter}")
+        if pflanze["warte_auf_wasser"]:
+            if(
+                pflanze["boss"]
+                and pflanze["giess_deadline"] is not None
+                and jetzt >= pflanze["giess_deadline"]
+            ):
+                feld[nummer] = None
+                status_text.config(
+                    text="The Dragon Fruit withered because it was not watered in time!"
+                )
+            continue
 
-    zeichne_farm()
+        vergangen = max(0, jetzt - pflanze["letzte_aktualisierung"])
+        dauer = PFLANZEN[pflanze["pflanze"]]["growth"]
 
-    if geplant:
-        fenster.after(100, aktualisiere_spiel)
+        pflanze["wachstum"] = min(
+            dauer,
+            pflanze["wachstum"] + vergangen * wachstumsfaktor,
+        )
+        pflanze["letzte_aktualisierung"] = jetzt
+
+        if (
+            pflanze["wasser_zeitpunkte"]
+            and pflanze["wachstum"] >= pflanze["wasser_zeitpunkte"][0]
+        ):
+            pflanze["wachstum"] >= pflanze["wasser_zeitpunkte"][0]
+            pflanze["warte_auf_wasser"] = True
+            pflanze["gegossen"] = [False, False, False]
+
+            if pflanze["boss"]:
+                pflanze["giess_deadline"] = jetzt + 15
+                status_text.config(
+                    text="Dragon Fruit needs water now! You have 15 seconds!"
+                )
+            else:
+                pflanze["giess_deadline"] = None
+                status_text.config(
+                    text=f"{pflanze['pflanze']} needs water. its growth is paused, but it will not be lost."
+                )
 
 def zeige_spiel():
     global spielfeld, status_text, geld_text
@@ -484,7 +943,7 @@ def zeige_spiel():
 
     spielstart = time.monotonic()
     letzter_tag = 1
-    wetter = random.choice(["Sonnig", "Bewölkt", "Regen"])
+    wetter = random.choice(["Sunny", "Cloudy", "Rain"])
 
 
     
@@ -496,16 +955,16 @@ def zeige_spiel():
 
     tk.Label(
         kopf,
-        text="Mein Bauernhof",
+        text="My Farm",
         font=("Arial", 24, "bold"),
         bg="#d9edc2",
         fg="#31572c",
     ).pack(side="left", padx=20)
 
-    # Direkt nach dem Label "Mein Bauernhof" einfügen:
+    # Day and weather display
     tag_text = tk.Label(
         kopf,
-        text="TAG 1  |  ☀ SONNIG",
+        text="DAY 1  |  SUNNY",
         font=("Arial", 16, "bold"),
         bg="#d9edc2",
         fg="#b26a00",
@@ -514,7 +973,7 @@ def zeige_spiel():
 
     geld_text = tk.Label(
         kopf,
-        text=f"Münzen: {geld}",
+        text=f"Coins: {geld}",
         font=("Arial", 18, "bold"),
         bg="#d9edc2",
         fg="#654321",
@@ -526,35 +985,35 @@ def zeige_spiel():
 
     tk.Button(
         werkzeuge,
-        text="Karottensamen (5 Münzen)",
-        command=lambda: waehle_werkzeug("Karotte"),
+        text="Shop",
+        command=zeige_shop,
         font=("Arial", 12, "bold"),
     ).pack(side="left", padx=5)
 
     tk.Button(
         werkzeuge,
-        text="Tomatensamen (15 Münzen)",
-        command=lambda: waehle_werkzeug("Tomate"),
+        text="Marketplace",
+        command=zeige_marktplatz,
         font=("Arial", 12, "bold"),
     ).pack(side="left", padx=5)
 
     tk.Button(
         werkzeuge,
-        text="Gießkanne",
-        command=lambda: waehle_werkzeug("Wasser"),
+        text="Watering Can",
+        command=lambda: waehle_werkzeug("Water"),
         font=("Arial", 12, "bold"),
     ).pack(side="left", padx=5)
 
     tk.Button(
         werkzeuge,
-        text="Ernten",
-        command=lambda: waehle_werkzeug("Ernte"),
+        text="Harvest",
+        command=lambda: waehle_werkzeug("Harvest"),
         font=("Arial", 12, "bold"),
     ).pack(side="left", padx=5)
 
     status_text = tk.Label(
         fenster,
-        text="Wähle einen Samen aus und klicke auf ein leeres Beet.",
+        text="Choose seeds from your inventory, then click an empty plot.",
         font=("Arial", 12),
         bg="#d9edc2",
         fg="#31572c",
@@ -569,6 +1028,28 @@ def zeige_spiel():
     )
     spielfeld.pack()
     spielfeld.bind("<Button-1>", klicke_auf_farm)
+    inventar = tk.Frame(fenster, bg="#d9edc2")
+    inventar.pack(pady=8)
+
+    tk.Label(
+        inventar,
+        text="Seeds:",
+        font=("Arial", 12, "bold"),
+        bg="#d9edc2",
+    ).pack(side="left", padx=5)
+
+    inventar_buttons.clear()
+
+    for name in samen_inventar:
+        button = tk.Button(
+            inventar,
+            text="",
+            command=lambda n=name: waehle_werkzeug(n),
+        )
+        button.pack(side="left", padx=5)
+        inventar_buttons[name] = button
+
+    aktualisiere_inventar()
 
     zeichne_farm()
     fenster.bind(
