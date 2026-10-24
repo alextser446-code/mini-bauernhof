@@ -35,7 +35,7 @@ PFLANZEN = {
     "Dragon Fruit": {
         "price": 1000, "sale": 5000, "chance": 0.01, "stock": (1, 1),
         "growth": 180, "extra_watering": 5, "boss": True,
-        "stem": "#315c35", "leaf1": "338e52", "leaf2": "#66c77a",
+        "stem": "#315c35", "leaf1": "#338e52", "leaf2": "#66c77a",
     },
 }
 
@@ -151,7 +151,7 @@ def zeige_shop():
 
     fenster_shop = tk.Toplevel(fenster)
     fenster_shop.title("Seed Shop")
-    fenster_shop.geometry("360x260")
+    fenster_shop.geometry("500x390")
     fenster_shop.configure(bg="#d9edc2")
 
     shop_labels = {}
@@ -234,7 +234,7 @@ def zeige_marktplatz():
 
     fenster_markt = tk.Toplevel(fenster)
     fenster_markt.title("Marketplace")
-    fenster_markt.geometry("360x240")
+    fenster_markt.geometry("500x390")
     fenster_markt.configure(bg="#d9edc2")
 
     markt_labels = {}
@@ -479,7 +479,7 @@ def zeichne_farm():
         dauer = daten["growth"]
 
         if pflanze["startzeit"] is None:
-            wachszum = 0.15
+            wachstum = 0.15
             fortschritt = 0
             anzeige = "Not watered yet"
         else:
@@ -629,6 +629,7 @@ def zeichne_farm():
                             outline="",
                         )
 
+        balken_links = x1 + 40
         balken_rechts = x2 - 40
         balken_y = y1 + 190
 
@@ -758,8 +759,8 @@ def klicke_auf_farm(event):
                 "giess_deadline": None,
                 "boss": daten.get("boss", False),
                 "wasser_zeitpunkte": [
-                    daten["growth"] * schritt / (extra_wasser + 1)
-                    for schritt in range(1, extra_wasser + 1)
+                    daten["growth"] * schritt / (extra_water + 1)
+                    for schritt in range(1, extra_water + 1)
                 ],
             }
 
@@ -792,7 +793,7 @@ def klicke_auf_farm(event):
 
                     if all(pflanze["gegossen"]):
                         pflanze["startzeit"] = time.monotonic()
-                        pflanze["letzte_aktualisierung"] = time. monotonic()
+                        pflanze["letzte_aktualisierung"] = time.monotonic()
                         if pflanze["boss"]:
                             status_text.config(
                                 text="Dragon Fruit started! it needs 3 minutes and 5 extra waterings."
@@ -829,7 +830,7 @@ def klicke_auf_farm(event):
                     status_text.config(text="Watering round complete! Growth continues.")
                 else:
                     status_text.config(
-                        text="Water the other blue spots befor time runs out!"
+                    text="Water the other blue spots before time runs out!"
                     )
 
                 zeichne_farm()
@@ -891,6 +892,9 @@ def aktualisiere_spiel(geplant=True):
         letzter_tag = tag
         wetter = random.choice(["Sunny", "Cloudy", "Rain"])
 
+    if tag_text is not None and tag_text.winfo_exists():
+        tag_text.config(text=f"DAY {tag}  |  {wetter.upper()}")
+
     wachstumsfaktor = 1.5 if wetter == "Rain" else 1.0
 
     for nummer, pflanze in enumerate(feld):
@@ -922,7 +926,6 @@ def aktualisiere_spiel(geplant=True):
             pflanze["wasser_zeitpunkte"]
             and pflanze["wachstum"] >= pflanze["wasser_zeitpunkte"][0]
         ):
-            pflanze["wachstum"] >= pflanze["wasser_zeitpunkte"][0]
             pflanze["warte_auf_wasser"] = True
             pflanze["gegossen"] = [False, False, False]
 
@@ -934,8 +937,12 @@ def aktualisiere_spiel(geplant=True):
             else:
                 pflanze["giess_deadline"] = None
                 status_text.config(
-                    text=f"{pflanze['pflanze']} needs water. its growth is paused, but it will not be lost."
+                    text=f"{pflanze['pflanze']} needs water. Its growth is paused, but it will not be lost."
                 )
+
+    zeichne_farm()
+    if geplant:
+        fenster.after(100, aktualisiere_spiel)
 
 def zeige_spiel():
     global spielfeld, status_text, geld_text
