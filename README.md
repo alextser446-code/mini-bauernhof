@@ -1,14 +1,64 @@
 # My Mini Farm
 
-My Mini Farm is a small farming game for Windows. Players can buy seeds, plant different crops, water them as they grow, harvest ripe produce, and sell it at the marketplace. Some crops need extra watering, and the rare Dragon Fruit requires careful timing. The game is designed for players who enjoy simple, casual farming games.
+My Mini Farm is a small, mouse-controlled farming game made with Python and Tkinter. Plant seeds, water crops as they grow, harvest and sell your produce, discover new plants, and build up your farm. The game is a personal indie project and is still being developed.
 
-The game was built with Python and Tkinter, which provides its graphical interface. The Python program was packaged as a Windows executable using PyInstaller.
+## Features
+
+- A visual farm with several plots, crop growth stages, and changing sunny, cloudy, and rainy weather.
+- Six crops with different shop availability, growth times, watering needs, and sale values: Carrot, Tomato, Strawberry, Pumpkin, Golden Flower, and the rare Dragon Fruit.
+- A seed shop whose stock refreshes every 60 seconds. Two customers arrive during each stock cycle and may buy items from the shop, so stock can disappear before you do.
+- A marketplace where you can sell harvested crops. Sale prices vary between stock cycles.
+- A crop library that records plants you have discovered.
+- A Mixing Bucket for combining crops into hybrids. Recipes unlock in order, and hybrids can be sold for higher prices.
+- Tutorial and farming quests, achievements, and a statistics menu for lifetime harvests, watering rounds, and gross coins earned.
+- Three animated farm helpers: watering, planting, and harvesting robots.
+- An optional fourth plot that can be unlocked with coins.
+- Automatic save files for the packaged Windows game.
 
 ## How to play
 
-1. Download `Terragame.exe` from the project's download page.
-2. If it is inside a ZIP file, extract the ZIP.
-3. Double-click `Terragame.exe` to start the game.
-4. Buy seeds in the shop, plant them in empty plots, water them, then harvest and sell them when they are ready.
+1. Open **Shop** and buy seeds while they are in stock.
+2. Select a seed from the inventory at the bottom of the screen, then click an empty plot to plant it.
+3. Select **Water** and click the planted crop when it needs water. Some crops need multiple watering rounds.
+4. Wait for the crop to finish growing, then select **Harvest** and click it.
+5. Open **Marketplace** to sell your harvest and earn coins. Use coins to buy more seeds, unlock a plot, and purchase robots.
+6. Check **Quests**, **Achievements**, **Crop Library**, and **Mixing Bucket** as your farm grows.
 
-Python does not need to be installed to play the packaged Windows version.
+The Dragon Fruit is exceptionally rare and takes the longest to grow. Watch its watering prompts carefully.
+
+## Run from source
+
+You need Windows and Python 3 with Tkinter. Tkinter is included with the standard Python for Windows installer; make sure **tcl/tk and IDLE** is selected during installation.
+
+Open PowerShell in the folder containing `Terragame.py`, then run:
+
+```powershell
+python Terragame.py
+```
+
+## Build the Windows executable
+
+Install PyInstaller and build from the same folder as `Terragame.py`:
+
+```powershell
+python -m pip install pyinstaller
+python -m PyInstaller --clean --noconfirm --onefile --windowed --name Terragame Terragame.py
+```
+
+The executable will be created at:
+
+```text
+dist/Terragame.exe
+```
+
+The packaged game stores its save file separately from the source code at `%APPDATA%/TerraGame/save.json`. Running the `.py` source does not load or write this packaged-game save file.
+
+## Built with
+
+- Python
+- Tkinter for the graphical interface
+- PyInstaller for the Windows executable
+
+## Project status
+
+This is an actively developed project. Features, balance, and interface details may change as the farm grows.
